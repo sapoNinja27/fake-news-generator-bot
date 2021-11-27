@@ -13,4 +13,4 @@ Funçoes
         exibe os comandos
 
 
-Ps: todos os comandos tem um tempo de resposta de 2 minutos, devido a limitação da api do twiter, o bot faz posts a cada 1 hora, se o post tera uma imagem dependera se o bot encontrar uma imagem com aquela descricao no banco
+Ps: todos os comandos tem um tempo de resposta de 2 minutos, devido a limitação da api do twiter, o bot faz posts a cada 1 hora, foi desabilitado o bot a postar imagem

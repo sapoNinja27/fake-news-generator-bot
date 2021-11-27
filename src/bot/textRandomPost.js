@@ -28,18 +28,16 @@ function randonNews() {
           noticia += letra;
         }
       });
-      imagemService.find("rato").then(function(imageObj){
-        console.log(_.isNil(imageObj))
+      imagemService.find(paralvrasList[0]).then(function(imageObj){
         let imgIds = []
         if(!_.isNil(imageObj)){
-          imgIds = imageObj.map(i=>{
-            return parseInt(i.conteudo)
-          })
+          // imgIds = imageObj.map(i=>{
+          //   return parseInt(i.conteudo)
+          // })
         }
-        console.log(imgIds)
         const status = {
           status: noticia+" fake.new/jda32a #bot🐀",
-          media_ids: ['1463693394639736840']
+          media_ids: [imgIds]
         }
         fakeBot.post(
           'statuses/update', status,

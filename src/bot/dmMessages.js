@@ -2,6 +2,7 @@ const fakeBot = require("./Twit");
 const _ = require('lodash');
 const palavraService = require('../services/palavra-service')
 const fraseService = require('../services/frase-service')
+const imagemService = require('../services/image-service')
 
 
 const admWord = require('../tokens/tokens').accesKey;
@@ -9,13 +10,11 @@ var comandos = [admWord, 'imagem', 'fundo', 'frase', 'palavra', 'help'];
 var localAdm = '';
 var botId = require('../tokens/tokens').botId;;
 var lastMessageId = '';
+var lastConteudo = '';
 var tempFrases = [];
 var trancaBot = false;
 var tipoAvaliacao = "";
 
-function avaliarPosts() {
-  return "Avaliando posts"
-}
 function ajustarHorario(value) {
   var h = value.split('/');
   initPubs[0] = (h[0].split(':'))[0]
@@ -77,6 +76,39 @@ function avaliar(value) {
       });
     })
   }
+
+  if (value.includes("imagem")) {
+    imagemService.findAll().then(function (data) {
+      data.forEach(element => {
+        if (!element.avaliada && !trancaBot) {
+          trancaBot = true;
+          fakeBot.post('direct_messages/events/new', {
+            event: {
+              type: "message_create",
+              message_create: {
+                target: {
+                  recipient_id: localAdm
+                },
+                message_data: {
+                  text: "id:" + element._id + ": \n\n" + element.descricao,
+                  attachment:{
+                    type: "media",
+                    media:{
+                      id:element.conteudo
+                    }
+                  }
+                }
+              }
+            }
+          }, (error, event) => {
+            if (error) {
+              console.log(error)
+            }
+          })
+        }
+      });
+    })
+  }
 }
 function verifyCommandsADM(value) {
   var newValue = value.split(admWord + " ")[1];
@@ -94,16 +126,47 @@ function verifyCommandsADM(value) {
 }
 function verifyCommands(value) {
   if (value.includes("palavra")) {
+    var parse = value.split("palavra: ")[1]
+    if(lastConteudo == parse){
+      return
+    }
+    lastConteudo = parse;
     var tipo = {
-      conteudo: value.split("palavra: ")[1]
+      conteudo: parse
     };
-    palavraService.save(tipo)
+    palavraService.save(tipo).then(function(data){
+      return "Sugestão enviada para avaliação \nHehe 🐀"
+    })
   }
   if (value.includes("frase")) {
+    var parse = value.split("frase: ")[1]
+    lastConteudo = parse;
     var tipo = {
-      conteudo: value.split("frase: ")[1]
+      conteudo: parse
     };
-    fraseService.save(tipo)
+    fraseService.save(tipo).then(function(data){
+      return "Sugestão enviada para avaliação \nHehe 🐀"
+    })
+  }
+  if (value.includes("imagem")) {
+    var parse = value.split("'")
+    lastConteudo = parse[1];
+    imagemService.convert(parse[1]).then(function (data) {
+      fakeBot.post("media/upload", { media: data }, function (error, media, response) {
+        if (error) {
+          console.log(error)
+        } else {
+          var desc = parse[2].split(' descricao: ')[1];
+          var tipo = {
+            conteudo: media.media_id_string,
+            descricao: desc
+          };
+          imagemService.save(tipo).then(function(data){
+            return "Sugestão enviada para avaliação \nHehe 🐀"
+          })
+        }
+      })
+    })
   }
   return "Sugestão enviada para avaliação \nHehe 🐀"
 }
@@ -117,36 +180,14 @@ function verifyWords(comando) {
   return isComando;
 }
 function readMessages() {
-  /*
-   media: {
-      id: 1462521441652547600,
-      id_str: '1462521441652547584',
-      indices: [Array],
-      media_url: 'https://ton.twitter.com/1.1/ton/data/dm/1462521464100425732/1462521441652547584/XKWbSM1G.png',
-      media_url_https: 'https://ton.twitter.com/1.1/ton/data/dm/1462521464100425732/1462521441652547584/XKWbSM1G.png',
-      url: 'https://t.co/F8kYzSvRFz',
-      display_url: 'pic.twitter.com/F8kYzSvRFz',
-      expanded_url: 'https://twitter.com/messages/media/1462521464100425732',
-      type: 'photo',
-      sizes: [Object]
-    }
-  */
-  const status = {
-    status: "Teste postando duas imagens",
-    media_ids: [1462524558934790150]
-  }
-  fakeBot.post("statuses/update", status, function (error, tweet, response) {
-    if (error) {
-      console.log(error)
-    } else {
-      console.log("Successfully tweeted an image!")
-    }
-  })
   fakeBot.get("/direct_messages/events/list").then(function (value) {
-    console.log(value.data.events[2].message_create.message_data)
+    if(lastConteudo == value.data.events[0].message_create.message_data.text){
+      return
+    }
+    lastConteudo = value.data.events[0].message_create.message_data.text;
+    console.log(lastConteudo);
     var lastMessage = (value.data.events[0].message_create.message_data.text);
     var anteLastMessage = (value.data.events[1].message_create.message_data.text);
-
     if (_.isEqual(lastMessage, "aprovado") && trancaBot) {
       var id = anteLastMessage.split(":")[1];
       if (_.isEqual(tipoAvaliacao, 'frase')) {
@@ -157,6 +198,12 @@ function readMessages() {
       }
       if (_.isEqual(tipoAvaliacao, 'palavra')) {
         palavraService.update(id).then(function () {
+          trancaBot = false;
+          avaliar(tipoAvaliacao);
+        })
+      }
+      if (_.isEqual(tipoAvaliacao, 'image')) {
+        imagemService.update(id).then(function () {
           trancaBot = false;
           avaliar(tipoAvaliacao);
         })
@@ -172,6 +219,13 @@ function readMessages() {
       }
       if (_.isEqual(tipoAvaliacao, 'palavra')) {
         palavraService.delete(id).then(function () {
+          trancaBot = false;
+          avaliar(tipoAvaliacao);
+        })
+      }
+
+      if (_.isEqual(tipoAvaliacao, 'imagem')) {
+        imagemService.delete(id).then(function () {
           trancaBot = false;
           avaliar(tipoAvaliacao);
         })
@@ -228,7 +282,7 @@ function mensagem(value, sender_id) {
   }
   return verifyCommands(value);
 }
-function send(value){
+function send(value) {
   value.forEach(element => {
     var texto = mensagem(element.message_create.message_data.text, element.message_create.sender_id);
     if (_.isEmpty(texto)) {

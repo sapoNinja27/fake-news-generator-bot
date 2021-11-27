@@ -1,6 +1,7 @@
 const fakeBot = require("./Twit");
 const fraseService = require('../services/frase-service')
 const palavraService = require('../services/palavra-service')
+const imagemService = require('../services/image-service')
 const _ = require('lodash')
 function randonNews() {
   fraseService.find().then(function (data) {
@@ -27,17 +28,30 @@ function randonNews() {
           noticia += letra;
         }
       });
-      fakeBot.post(
-        'statuses/update',
-        { status: noticia+" fake.new/jda32a #bot🐀" },
-        function (err, data, response) {
-          if (err) {
-            console.log("ERRO: " + err);
-            return false;
-          }
-          console.log("Tweet postado com sucesso!\n");
+      imagemService.find("rato").then(function(imageObj){
+        console.log(_.isNil(imageObj))
+        let imgIds = []
+        if(!_.isNil(imageObj)){
+          imgIds = imageObj.map(i=>{
+            return parseInt(i.conteudo)
+          })
         }
-      )
+        console.log(imgIds)
+        const status = {
+          status: noticia+" fake.new/jda32a #bot🐀",
+          media_ids: ['1463693394639736840']
+        }
+        fakeBot.post(
+          'statuses/update', status,
+          function (err, data, response) {
+            if (err) {
+              console.log("ERRO: " + err);
+              return false;
+            }
+            console.log("Tweet postado com sucesso!\n");
+          }
+        )
+      })
     })
   });
 }

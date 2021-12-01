@@ -29,13 +29,12 @@ function randonNews() {
           noticia += letra;
         }
       });
-      imagemService.find("paralvrasList[0]").then(function(imageObj){
-        let imagemBins = []
-        if(imageObj == []){    
-          imagemBins = imageObj.map(i=>{
-            return parseInt(i.conteudo)
-          })   
-            fakeBot.post("media/upload", { media: imagemBins[0] }, function (error, media, response) {
+      imagemService.find(paralvrasList[0]).then(function(imageObj){
+        if(imageObj != []){    
+          // imagemBins = imageObj.map(i=>{
+          //   return parseInt(i.conteudo)
+          // })   
+            fakeBot.post("media/upload", { media: imageObj[0].conteudo }, function (error, media, response) {
               if (error) {
                 console.log(error)
               } else {

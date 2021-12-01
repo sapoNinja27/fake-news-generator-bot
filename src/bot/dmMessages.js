@@ -20,9 +20,8 @@ function readMessages() {
     if (lastConteudo == value.data.events[0].message_create.message_data.text) {
       return
     }
-    
+
     lastConteudo = value.data.events[0].message_create.message_data.text;
-console.log(lastConteudo)
     checarConteudo(lastConteudo);
 
     if (trancaBot) {
@@ -98,7 +97,7 @@ function aprovar() {
       avaliar(tipoAvaliacao);
     })
   }
-  if (_.isEqual(tipoAvaliacao, 'image')) {
+  if (_.isEqual(tipoAvaliacao, 'imagem')) {
     imagemService.update(itemId).then(function () {
       trancaBot = false;
       avaliar(tipoAvaliacao);
@@ -119,7 +118,6 @@ function recusar() {
       avaliar(tipoAvaliacao);
     })
   }
-
   if (_.isEqual(tipoAvaliacao, 'imagem')) {
     imagemService.delete(itemId).then(function () {
       trancaBot = false;
@@ -135,10 +133,12 @@ function ajustarHorario(value) {
   timerPublicacao = h[1] * 60000 * 60
 }
 function sendToAdm(conteudo, id, imagem) {
+  if (!conteudo) {
+    return "todas as " + tipoAvaliacao + "s avaliadas"
+  }
   itemId = id;
-  console.log(id)
   var attch = null;
-  if(imagem != undefined){
+  if (imagem) {
     attch = {
       type: "media",
       media: {
@@ -170,9 +170,10 @@ function avaliar(value) {
   if (value.includes("frase")) {
     fraseService.findAll().then(function (data) {
       data.forEach(element => {
+        console.log(element)
         if (!element.avaliada && !trancaBot) {
           trancaBot = true;
-          sendToAdm(element.conteudo, element.id)
+          sendToAdm(element.conteudo, element._id)
         }
       });
     })
@@ -183,7 +184,7 @@ function avaliar(value) {
       data.forEach(element => {
         if (!element.avaliada && !trancaBot) {
           trancaBot = true;
-          sendToAdm(element.conteudo, element.id)
+          sendToAdm(element.conteudo, element._id)
         }
       });
     })
@@ -198,7 +199,7 @@ function avaliar(value) {
             if (error) {
               console.log(error)
             } else {
-              sendToAdm(element.descricao, element.id, media.media_id_string)
+              sendToAdm(element.descricao, element._id, media.media_id_string)
             }
           })
         }
@@ -231,7 +232,7 @@ function verifyCommands(value) {
       conteudo: parse
     };
     palavraService.save(tipo).then(function (data) {
-      enviando = false;
+      console.log(data)
     })
   }
   if (value.includes("frase")) {
@@ -241,31 +242,27 @@ function verifyCommands(value) {
       conteudo: parse
     };
     fraseService.save(tipo).then(function (data) {
-      enviando = false;
+      console.log(data)
     })
   }
   if (value.includes("imagem")) {
     var parse = value.split("'")
     lastConteudo = parse[1];
     imagemService.convert(parse[1]).then(function (data) {
-      fakeBot.post("media/upload", { media: data }, function (error, media, response) {
-        if (error) {
-          console.log(error)
-        } else {
-          var desc = parse[2].split(' descricao: ')[1];
-          var tipo = {
-            conteudo: media.media_id_string,
-            descricao: desc
-          };
-          palavraService.save({
-            conteudo: tipo.descricao
-          }).then(function () {
-            imagemService.save(tipo).then(function (data) {
-              enviando = false;
-            })
-          })
-        }
+      var desc = parse[2].split(' descricao: ')[1];
+      var tipo = {
+        conteudo: data,
+        descricao: desc
+      };
+      palavraService.save({
+        conteudo: tipo.descricao
+      }).then(function (data) {
+        console.log(data)
       })
+      imagemService.save(tipo).then(function (data) {
+        console.log(data)
+      })
+
     })
   }
   return "Sugestão enviada para avaliação \nHehe 🐀"

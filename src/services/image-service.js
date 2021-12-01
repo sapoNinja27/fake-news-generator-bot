@@ -32,7 +32,6 @@ module.exports.save = function(obj) {
 }
 
 module.exports.update = function(id) {
-  console.log()
   return axios
     .put(rota + "/update/" + id,{avaliada: true}, {
       headers: {

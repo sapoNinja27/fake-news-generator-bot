@@ -10,16 +10,160 @@ var comandos = [admWord, 'imagem', 'fundo', 'frase', 'palavra', 'help'];
 var localAdm = '';
 var botId = require('../tokens/tokens').botId;;
 var lastMessageId = '';
+var itemId = '';
 var lastConteudo = '';
-var tempFrases = [];
 var trancaBot = false;
 var tipoAvaliacao = "";
+
+function readMessages() {
+  fakeBot.get("/direct_messages/events/list").then(function (value) {
+    if (lastConteudo == value.data.events[0].message_create.message_data.text) {
+      return
+    }
+    
+    lastConteudo = value.data.events[0].message_create.message_data.text;
+console.log(lastConteudo)
+    checarConteudo(lastConteudo);
+
+    if (trancaBot) {
+      return;
+    }
+
+    var recebidas = filtrarRecebidas(value);
+    var respondidas = filtrarRespondidas(value);
+
+    var novasChamadas = filtrarNovasChamadas(recebidas, respondidas);
+
+    var naoRespondidas = filtraNaoRespondidas(recebidas, respondidas);
+
+    send(novasChamadas);
+    send(naoRespondidas);
+  });
+}
+
+function checarConteudo(lastMessage) {
+  if (_.isEqual(lastMessage, "aprovado") && trancaBot) {
+    aprovar();
+  }
+  if (_.isEqual(lastMessage, "recusado") && trancaBot) {
+    recusar();
+  }
+}
+function filtraNaoRespondidas(recebidas, respondidas) {
+  return recebidas
+    .filter(function (rec) {
+      var dataRec = rec.created_timestamp;
+
+      var datasResp = respondidas
+        .filter(function (res) {
+          return res.message_create.target.recipient_id == rec.message_create.sender_id;
+        })
+        .map(function (timestamp) {
+          return timestamp.created_timestamp;
+        }).sort(function (a, b) {
+          return b - a;
+        });
+      return datasResp[0] < dataRec;
+    });
+}
+function filtrarNovasChamadas(recebidas, respondidas) {
+  return recebidas.filter(function (mensagemRecebida) {
+    var respondidasPraEssa = (respondidas
+      .filter(function (mensagenRespondida) {
+        return mensagenRespondida.message_create.target.recipient_id == mensagemRecebida.message_create.sender_id;
+      }))[0];
+    return respondidasPraEssa == undefined;
+  });
+}
+function filtrarRespondidas(value) {
+  return (value.data.events).filter(function (a) {
+    return a.message_create.sender_id == botId;
+  })
+}
+function filtrarRecebidas(value) {
+  return (value.data.events).filter(function (a) {
+    return verifyWords(a.message_create.message_data.text) && a.message_create.sender_id != botId;
+  })
+}
+function aprovar() {
+  if (_.isEqual(tipoAvaliacao, 'frase')) {
+    fraseService.update(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+  if (_.isEqual(tipoAvaliacao, 'palavra')) {
+    palavraService.update(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+  if (_.isEqual(tipoAvaliacao, 'image')) {
+    imagemService.update(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+}
+
+function recusar() {
+  if (_.isEqual(tipoAvaliacao, 'frase')) {
+    palavraService.delete(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+  if (_.isEqual(tipoAvaliacao, 'palavra')) {
+    palavraService.delete(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+
+  if (_.isEqual(tipoAvaliacao, 'imagem')) {
+    imagemService.delete(itemId).then(function () {
+      trancaBot = false;
+      avaliar(tipoAvaliacao);
+    })
+  }
+}
 
 function ajustarHorario(value) {
   var h = value.split('/');
   initPubs[0] = (h[0].split(':'))[0]
   initPubs[1] = (h[0].split(':'))[1]
   timerPublicacao = h[1] * 60000 * 60
+}
+function sendToAdm(conteudo, id, imagem) {
+  itemId = id;
+  console.log(id)
+  var attch = null;
+  if(imagem != undefined){
+    attch = {
+      type: "media",
+      media: {
+        id: imagem
+      }
+    };
+  }
+  fakeBot.post('direct_messages/events/new', {
+    event: {
+      type: "message_create",
+      message_create: {
+        target: {
+          recipient_id: localAdm
+        },
+        message_data: {
+          text: conteudo,
+          attachment: attch
+        }
+      }
+    }
+  }, (error, event) => {
+    if (error) {
+      console.log(error)
+    }
+  })
 }
 function avaliar(value) {
   tipoAvaliacao = value;
@@ -28,23 +172,7 @@ function avaliar(value) {
       data.forEach(element => {
         if (!element.avaliada && !trancaBot) {
           trancaBot = true;
-          fakeBot.post('direct_messages/events/new', {
-            event: {
-              type: "message_create",
-              message_create: {
-                target: {
-                  recipient_id: localAdm
-                },
-                message_data: {
-                  text: "id:" + element._id + ": \n\n" + element.conteudo
-                }
-              }
-            }
-          }, (error, event) => {
-            if (error) {
-              console.log(error)
-            }
-          })
+          sendToAdm(element.conteudo, element.id)
         }
       });
     })
@@ -55,23 +183,7 @@ function avaliar(value) {
       data.forEach(element => {
         if (!element.avaliada && !trancaBot) {
           trancaBot = true;
-          fakeBot.post('direct_messages/events/new', {
-            event: {
-              type: "message_create",
-              message_create: {
-                target: {
-                  recipient_id: localAdm
-                },
-                message_data: {
-                  text: "id:" + element._id + ": \n\n" + element.conteudo
-                }
-              }
-            }
-          }, (error, event) => {
-            if (error) {
-              console.log(error)
-            }
-          })
+          sendToAdm(element.conteudo, element.id)
         }
       });
     })
@@ -82,27 +194,11 @@ function avaliar(value) {
       data.forEach(element => {
         if (!element.avaliada && !trancaBot) {
           trancaBot = true;
-          fakeBot.post('direct_messages/events/new', {
-            event: {
-              type: "message_create",
-              message_create: {
-                target: {
-                  recipient_id: localAdm
-                },
-                message_data: {
-                  text: "id:" + element._id + ": \n\n" + element.descricao,
-                  attachment:{
-                    type: "media",
-                    media:{
-                      id:element.conteudo
-                    }
-                  }
-                }
-              }
-            }
-          }, (error, event) => {
+          fakeBot.post("media/upload", { media: element.conteudo }, function (error, media, response) {
             if (error) {
               console.log(error)
+            } else {
+              sendToAdm(element.descricao, element.id, media.media_id_string)
             }
           })
         }
@@ -127,15 +223,15 @@ function verifyCommandsADM(value) {
 function verifyCommands(value) {
   if (value.includes("palavra")) {
     var parse = value.split("palavra: ")[1]
-    if(lastConteudo == parse){
+    if (lastConteudo == parse) {
       return
     }
     lastConteudo = parse;
     var tipo = {
       conteudo: parse
     };
-    palavraService.save(tipo).then(function(data){
-      return "Sugestão enviada para avaliação \nHehe 🐀"
+    palavraService.save(tipo).then(function (data) {
+      enviando = false;
     })
   }
   if (value.includes("frase")) {
@@ -144,8 +240,8 @@ function verifyCommands(value) {
     var tipo = {
       conteudo: parse
     };
-    fraseService.save(tipo).then(function(data){
-      return "Sugestão enviada para avaliação \nHehe 🐀"
+    fraseService.save(tipo).then(function (data) {
+      enviando = false;
     })
   }
   if (value.includes("imagem")) {
@@ -161,8 +257,12 @@ function verifyCommands(value) {
             conteudo: media.media_id_string,
             descricao: desc
           };
-          imagemService.save(tipo).then(function(data){
-            return "Sugestão enviada para avaliação \nHehe 🐀"
+          palavraService.save({
+            conteudo: tipo.descricao
+          }).then(function () {
+            imagemService.save(tipo).then(function (data) {
+              enviando = false;
+            })
           })
         }
       })
@@ -179,96 +279,7 @@ function verifyWords(comando) {
   });
   return isComando;
 }
-function readMessages() {
-  fakeBot.get("/direct_messages/events/list").then(function (value) {
-    if(lastConteudo == value.data.events[0].message_create.message_data.text){
-      return
-    }
-    lastConteudo = value.data.events[0].message_create.message_data.text;
-    console.log(lastConteudo);
-    var lastMessage = (value.data.events[0].message_create.message_data.text);
-    var anteLastMessage = (value.data.events[1].message_create.message_data.text);
-    if (_.isEqual(lastMessage, "aprovado") && trancaBot) {
-      var id = anteLastMessage.split(":")[1];
-      if (_.isEqual(tipoAvaliacao, 'frase')) {
-        fraseService.update(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
-      if (_.isEqual(tipoAvaliacao, 'palavra')) {
-        palavraService.update(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
-      if (_.isEqual(tipoAvaliacao, 'image')) {
-        imagemService.update(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
-    }
-    if (_.isEqual(lastMessage, "recusado") && trancaBot) {
-      var id = anteLastMessage.split(":")[1];
-      if (_.isEqual(tipoAvaliacao, 'frase')) {
-        palavraService.delete(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
-      if (_.isEqual(tipoAvaliacao, 'palavra')) {
-        palavraService.delete(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
 
-      if (_.isEqual(tipoAvaliacao, 'imagem')) {
-        imagemService.delete(id).then(function () {
-          trancaBot = false;
-          avaliar(tipoAvaliacao);
-        })
-      }
-    }
-    if (trancaBot) {
-      return;
-    }
-    var recebidas = (value.data.events).filter(function (a) {
-      return verifyWords(a.message_create.message_data.text) && a.message_create.sender_id != botId;
-    })
-    var respondidas = (value.data.events).filter(function (a) {
-      return a.message_create.sender_id == botId;
-    })
-
-    var novasChamadas = recebidas.filter(function (mensagemRecebida) {
-      var respondidasPraEssa = (respondidas
-        .filter(function (mensagenRespondida) {
-          return mensagenRespondida.message_create.target.recipient_id == mensagemRecebida.message_create.sender_id;
-        }))[0];
-      return respondidasPraEssa == undefined;
-    });
-
-    var naoRespondidas = recebidas
-      .filter(function (rec) {
-        var dataRec = rec.created_timestamp;
-
-        var datasResp = respondidas
-          .filter(function (res) {
-            return res.message_create.target.recipient_id == rec.message_create.sender_id;
-          })
-          .map(function (timestamp) {
-            return timestamp.created_timestamp;
-          }).sort(function (a, b) {
-            return b - a;
-          });
-        return datasResp[0] < dataRec;
-      });
-
-    send(novasChamadas);
-    send(naoRespondidas);
-  });
-}
 function mensagem(value, sender_id) {
   if (value.includes(admWord)) {
     if (_.isEqual(value, 'leafeon help')) {
@@ -282,6 +293,7 @@ function mensagem(value, sender_id) {
   }
   return verifyCommands(value);
 }
+
 function send(value) {
   value.forEach(element => {
     var texto = mensagem(element.message_create.message_data.text, element.message_create.sender_id);

@@ -2,7 +2,8 @@ const fakeBot = require("./Twit");
 const fraseService = require('../services/frase-service')
 const palavraService = require('../services/palavra-service')
 const imagemService = require('../services/image-service')
-const _ = require('lodash')
+const _ = require('lodash');
+
 function randonNews() {
   fraseService.find().then(function (data) {
     if (_.isNil(data) || _.isEmpty(data)) {
@@ -28,29 +29,40 @@ function randonNews() {
           noticia += letra;
         }
       });
-      imagemService.find(paralvrasList[0]).then(function(imageObj){
-        let imgIds = []
-        if(!_.isNil(imageObj)){
-          // imgIds = imageObj.map(i=>{
-          //   return parseInt(i.conteudo)
-          // })
+      imagemService.find("paralvrasList[0]").then(function(imageObj){
+        let imagemBins = []
+        if(imageObj == []){    
+          imagemBins = imageObj.map(i=>{
+            return parseInt(i.conteudo)
+          })   
+            fakeBot.post("media/upload", { media: imagemBins[0] }, function (error, media, response) {
+              if (error) {
+                console.log(error)
+              } else {
+                send(noticia, media.media_id_string)
+              }
+            })
+        }else {
+          send(noticia)
         }
-        const status = {
-          status: noticia+" fake.new/jda32a #bot🐀",
-          media_ids: [imgIds]
-        }
-        fakeBot.post(
-          'statuses/update', status,
-          function (err, data, response) {
-            if (err) {
-              console.log("ERRO: " + err);
-              return false;
-            }
-            console.log("Tweet postado com sucesso!\n");
-          }
-        )
       })
     })
   });
+}
+function send(noticia, imgIds){
+  const status = {
+    status: noticia+" fake.new/jda32a #bot🐀",
+    media_ids: imgIds
+  }
+  fakeBot.post(
+    'statuses/update', status,
+    function (err, data, response) {
+      if (err) {
+        console.log("ERRO: " + err);
+        return false;
+      }
+      console.log("Tweet postado com sucesso!\n");
+    }
+  )
 }
 module.exports = randonNews;

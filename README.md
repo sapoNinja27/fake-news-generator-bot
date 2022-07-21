@@ -1,4 +1,9 @@
-Link GitHub https://github.com/sapoNinja27/fake-news-generator-bot
+Bot para gerar imagens humoristicas na plataforma twiter
+
+
+Link GitHub
+
+https://github.com/sapoNinja27/fake-news-generator-bot
 
 Funçoes
 
